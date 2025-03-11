@@ -2709,15 +2709,14 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 	if (p_xr_interface.is_null()) {
 		// Normal camera
 		Transform3D transform = camera->transform;
-		Projection main_projection;
-		Projection shadow_projection;
+		Projection projection;
 		bool vaspect = camera->vaspect;
 		bool is_orthogonal = false;
 		bool is_frustum = false;
 
 		switch (camera->type) {
 			case Camera::ORTHOGONAL: {
-				main_projection.set_orthogonal(
+				projection.set_orthogonal(
 						camera->size,
 						p_viewport_size.width / (float)p_viewport_size.height,
 						camera->znear,
@@ -2726,7 +2725,7 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 				is_orthogonal = true;
 			} break;
 			case Camera::PERSPECTIVE: {
-				main_projection.set_perspective(
+				projection.set_perspective(
 						camera->fov,
 						p_viewport_size.width / (float)p_viewport_size.height,
 						camera->znear,
@@ -2734,7 +2733,7 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 						camera->vaspect);
 			} break;
 			case Camera::FRUSTUM: {
-				main_projection.set_frustum(
+				projection.set_frustum(
 						camera->size,
 						p_viewport_size.width / (float)p_viewport_size.height,
 						camera->offset,
@@ -2747,9 +2746,9 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 
 		shadow_projection = main_projection;
 		if (camera->use_oblique_frustum) {
-			main_projection.apply_oblique_plane(get_camera_oblique_plane(p_camera));
+			projection.apply_oblique_plane(get_camera_oblique_plane(p_camera));
 		}
-		camera_data.set_camera(transform, main_projection, is_orthogonal, is_frustum, vaspect, jitter, taa_frame_count, camera->visible_layers);
+		camera_data.set_camera(transform, projection, is_orthogonal, is_frustum, vaspect, jitter, taa_frame_count, camera->visible_layers);
 	} else {
 		XRServer *xr_server = XRServer::get_singleton();
 
@@ -2781,7 +2780,7 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 		}
 
 		if (view_count == 1) {
-			camera_data.set_camera(transforms[0], projections[0], false, false, camera->vaspect, jitter, p_jitter_phase_count, camera->visible_layers);
+			camera_data.set_camera(transforms[0], projections[0], false, false, camera->vaspect, jitter, taa_frame_count, camera->visible_layers);
 		} else if (view_count == 2) {
 			camera_data.set_multiview_camera(view_count, transforms, projections, false, false, camera->vaspect);
 		} else {
@@ -3193,7 +3192,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
 	Instance *render_reflection_probe = instance_owner.get_or_null(p_reflection_probe); //if null, not rendering to it
 
 	// Prepare the light - camera volume culling system.
-	light_culler->prepare_camera(p_camera_data->main_transform, p_camera_data->shadow_projection);
+	light_culler->prepare_camera(p_camera_data->main_transform, p_camera_data->main_projection);
 
 	Scenario *scenario = scenario_owner.get_or_null(p_scenario);
 	Vector3 camera_position = p_camera_data->main_transform.origin;
