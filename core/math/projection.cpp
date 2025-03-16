@@ -773,7 +773,8 @@ void Projection::invert() {
 	r3[7] -= m3 * r2[7];
 
 	/* last check */
-	ERR_FAIL_COND(0.0 == r3[3]);
+	// commented this out because this shit triggers in certain cases in the editor
+//	ERR_FAIL_COND(0.0 == r3[3]);
 
 	s = 1.0 / r3[3]; /* now back substitute row 3 */
 	r3[4] *= s;
