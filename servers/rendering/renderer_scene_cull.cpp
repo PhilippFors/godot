@@ -2640,7 +2640,6 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 		// Normal camera
 		Transform3D transform = camera->transform;
 		Projection main_projection;
-		Projection shadow_projection;
 		bool vaspect = camera->vaspect;
 		bool is_orthogonal = false;
 		bool is_frustum = false;
@@ -2676,9 +2675,9 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 		}
 
 		if (camera->use_oblique_frustum) {
-			projection.apply_oblique_plane(get_camera_oblique_plane(p_camera));
+			main_projection.apply_oblique_plane(get_camera_oblique_plane(p_camera));
 		}
-		camera_data.set_camera(transform, projection, is_orthogonal, is_frustum, vaspect, jitter, taa_frame_count, camera->visible_layers);
+		camera_data.set_camera(transform, main_projection, is_orthogonal, is_frustum, vaspect, jitter, taa_frame_count, camera->visible_layers);
 #ifndef XR_DISABLED
 	} else {
 		XRServer *xr_server = XRServer::get_singleton();
