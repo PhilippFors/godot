@@ -41,6 +41,7 @@ void RendererSceneRender::CameraData::set_camera(const Transform3D p_transform, 
 
 	main_transform = p_transform;
 	main_projection = p_projection;
+//	shadow_projection = p_projection;
 
 	visible_layers = p_visible_layers;
 	view_offset[0] = Transform3D();

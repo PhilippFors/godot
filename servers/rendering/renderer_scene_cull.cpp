@@ -87,6 +87,15 @@ void RendererSceneCull::camera_set_perspective(RID p_camera, float p_fovy_degree
 	camera->zfar = p_z_far;
 }
 
+void RendererSceneCull::camera_set_oblique_plane(RID p_camera, bool p_use_oblique_frustum, const Vector3 &p_ob_normal, const Vector3 &p_ob_position, float p_ob_offset) {
+	Camera *camera = camera_owner.get_or_null(p_camera);
+	ERR_FAIL_NULL(camera);
+	camera->use_oblique_frustum = p_use_oblique_frustum;
+	camera->oblique_normal = p_ob_normal;
+	camera->oblique_position = p_ob_position;
+	camera->oblique_offset = p_ob_offset;
+}
+
 void RendererSceneCull::camera_set_orthogonal(RID p_camera, float p_size, float p_z_near, float p_z_far) {
 	Camera *camera = camera_owner.get_or_null(p_camera);
 	ERR_FAIL_NULL(camera);
@@ -146,6 +155,18 @@ void RendererSceneCull::camera_set_use_vertical_aspect(RID p_camera, bool p_enab
 
 bool RendererSceneCull::is_camera(RID p_camera) const {
 	return camera_owner.owns(p_camera);
+}
+
+Vector4 RendererSceneCull::get_camera_oblique_plane(RID p_camera) {
+	Camera *camera = camera_owner.get_or_null(p_camera);
+	ERR_FAIL_NULL_V(camera, Vector4());
+
+	int dot = int(camera->oblique_normal.dot(camera->oblique_position - camera->transform.origin) >= 0.0f ? 1.0f : -1.0f);
+	Vector3 cam_space_pos = camera->transform.xform_inv(camera->oblique_position);
+	Vector3 cam_space_normal = camera->transform.basis.xform_inv(camera->oblique_normal) * dot;
+	real_t cam_space_dst = -cam_space_pos.dot(cam_space_normal) + camera->oblique_offset;
+
+	return Vector4(cam_space_normal.x, cam_space_normal.y, cam_space_normal.z, cam_space_dst);
 }
 
 /* OCCLUDER API */
@@ -2193,7 +2214,6 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
 
 		if (p_cam_orthogonal) {
 			Vector2 vp_he = p_cam_projection.get_viewport_half_extents();
-
 			camera_matrix.set_orthogonal(vp_he.y * 2.0, aspect, distances[(i == 0 || !overlap) ? i : i - 1], distances[i + 1], false);
 		} else {
 			real_t fov = p_cam_projection.get_fov(); //this is actually yfov, because set aspect tries to keep it
@@ -2619,14 +2639,14 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 	if (p_xr_interface.is_null()) {
 		// Normal camera
 		Transform3D transform = camera->transform;
-		Projection projection;
+		Projection main_projection;
 		bool vaspect = camera->vaspect;
 		bool is_orthogonal = false;
 		bool is_frustum = false;
 
 		switch (camera->type) {
 			case Camera::ORTHOGONAL: {
-				projection.set_orthogonal(
+				main_projection.set_orthogonal(
 						camera->size,
 						p_viewport_size.width / (float)p_viewport_size.height,
 						camera->znear,
@@ -2635,16 +2655,15 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 				is_orthogonal = true;
 			} break;
 			case Camera::PERSPECTIVE: {
-				projection.set_perspective(
+				main_projection.set_perspective(
 						camera->fov,
 						p_viewport_size.width / (float)p_viewport_size.height,
 						camera->znear,
 						camera->zfar,
 						camera->vaspect);
-
 			} break;
 			case Camera::FRUSTUM: {
-				projection.set_frustum(
+				main_projection.set_frustum(
 						camera->size,
 						p_viewport_size.width / (float)p_viewport_size.height,
 						camera->offset,
@@ -2655,7 +2674,10 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
 			} break;
 		}
 
-		camera_data.set_camera(transform, projection, is_orthogonal, is_frustum, vaspect, jitter, taa_frame_count, camera->visible_layers);
+		if (camera->use_oblique_frustum) {
+			main_projection.apply_oblique_plane(get_camera_oblique_plane(p_camera));
+		}
+		camera_data.set_camera(transform, main_projection, is_orthogonal, is_frustum, vaspect, jitter, taa_frame_count, camera->visible_layers);
 #ifndef XR_DISABLED
 	} else {
 		XRServer *xr_server = XRServer::get_singleton();
@@ -3314,7 +3336,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
 
 			{ //compute coverage
 
-				Transform3D cam_xf = p_camera_data->main_transform;
+				Transform3D cam_xf = p_camera_data->main_projection;
 				float zn = p_camera_data->main_projection.get_z_near();
 				Plane p(-cam_xf.basis.get_column(2), cam_xf.origin + cam_xf.basis.get_column(2) * -zn); //camera near plane
 
